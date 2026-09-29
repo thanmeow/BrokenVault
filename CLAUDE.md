@@ -51,10 +51,21 @@ Done:
   `PUT /chunks/{hash}?upload_id=`, `POST /uploads/{id}/commit` (409 + `missing`),
   `GET /versions`, `GET /versions/{id}/manifest`, `GET /chunks/{hash}`, `POST /verify`.
   uploaded_bytes counts only chunks this upload actually had to store.
+- [x] Steps 4+5 — `client/`: `python -m client [--server URL] backup|list|restore|verify`.
+  `api.py` = requests wrapper (3 tries on network errors, errors -> `ClientError`),
+  `state.py` = `./.brokenvault/state.json` keyed `folder|server|manifest_hash`
+  (entry removed on commit; stale entries for the same folder dropped),
+  `backup.py` (reads chunks by file offset; `--stop-after N` -> exit 3;
+  resumes the same upload ID, starts fresh on 404; skips `.brokenvault/` if it's
+  inside the backed-up folder), `restore.py` (temp file + rename per file,
+  verifies every chunk, dir mtimes deepest-first), `cli.py`.
+  Exit codes: 0 ok, 1 error or damage found by verify, 3 interrupted.
+  `list` fetches each manifest to count files (the server's /versions doesn't include it).
+- [x] Tests: unit (`test_chunks`, `test_paths`, `test_manifest`, `test_server`,
+  `test_client_unit`) + `test_client_e2e.py` (real uvicorn subprocess on a free
+  port: round trip, dedup, small change, interrupt + server restart + resume,
+  verify, restore hash mismatch, error messages). 121 tests.
 
-Next:
-- [ ] Step 4 — `client/`: `backup` (state file with upload ID, resume after
-  client or server restart), `list`, `restore` into an empty folder
-  (verify chunk hashes, `safe_join`, empty files/dirs, set mtimes).
-- [ ] Step 5 — client `verify` command + end-to-end tests against a real
-  uvicorn server (including resume after restart).
+Next (optional polish):
+- [ ] README with usage examples for the demo.
+- [ ] Show a progress line during long backups/restores.
