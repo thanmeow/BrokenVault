@@ -13,7 +13,7 @@ EXIT_OK, EXIT_ERROR, EXIT_INTERRUPTED = 0, 1, 3
 
 
 def cmd_backup(api, args) -> int:
-    r = run_backup(api, args.folder, State(), stop_after=args.stop_after)
+    r = run_backup(api, args.folder, State(), stop_after=args.stop_after, progress_stream=sys.stderr)
     print(f"version:        {r['id']}")
     print(f"state:          {r['state']}")
     print(f"files:          {r['files']} files, {r['dirs']} dirs")
@@ -42,7 +42,7 @@ def cmd_list(api, args) -> int:
 
 
 def cmd_restore(api, args) -> int:
-    r = run_restore(api, args.version, args.dest)
+    r = run_restore(api, args.version, args.dest, progress_stream=sys.stderr)
     print(f"restored version {r['id']} to {args.dest}: {r['files']} files, {r['dirs']} dirs, {r['bytes']} bytes")
     return EXIT_OK
 

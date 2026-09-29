@@ -8,9 +8,10 @@ from common.chunks import chunk_id
 from common.manifest import DIR, FILE, ManifestError, manifest_from_list
 from common.paths import safe_join
 from client.api import ApiError, ClientError
+from client.progress import Progress
 
 
-def run_restore(api, version_id: str, dest) -> dict:
+def run_restore(api, version_id: str, dest, progress_stream=None) -> dict:
     dest = Path(dest)
     _check_destination(dest)
 
@@ -32,13 +33,16 @@ def run_restore(api, version_id: str, dest) -> dict:
     for d in dirs:
         safe_join(dest, d.path).mkdir(parents=True, exist_ok=True)
 
-    total = 0
-    for f in files:
-        target = safe_join(dest, f.path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        _restore_file(api, f, target, dest)
-        os.utime(target, ns=(f.mtime_ns, f.mtime_ns))
-        total += f.size
+    total = sum(f.size for f in files)
+    progress = Progress("restoring", sum(len(f.chunks) for f in files), total, progress_stream)
+    try:
+        for f in files:
+            target = safe_join(dest, f.path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            _restore_file(api, f, target, dest, progress)
+            os.utime(target, ns=(f.mtime_ns, f.mtime_ns))
+    finally:
+        progress.done()
 
     # Directory mtimes last (writing files changes them), deepest first.
     for d in sorted(dirs, key=lambda e: e.path.count("/"), reverse=True):
@@ -56,7 +60,7 @@ def _check_destination(dest: Path) -> None:
         raise ClientError(f"destination folder {dest} is not empty; restore needs an empty folder")
 
 
-def _restore_file(api, entry, target: Path, dest: Path) -> None:
+def _restore_file(api, entry, target: Path, dest: Path, progress: Progress) -> None:
     """Write the file's chunks in order to a temp file, then rename it into place."""
     fd, tmp_name = tempfile.mkstemp(dir=target.parent, prefix=".restore-")
     try:
@@ -69,6 +73,7 @@ def _restore_file(api, entry, target: Path, dest: Path) -> None:
                         f"(run verify). Restore stopped; {dest} is incomplete."
                     )
                 out.write(data)
+                progress.advance(len(data))
             size = out.tell()
         if size != entry.size:
             raise ClientError(f"{entry.path}: restored {size} bytes, expected {entry.size}")

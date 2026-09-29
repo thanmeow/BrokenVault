@@ -7,6 +7,7 @@ from common.chunks import CHUNK_SIZE, chunk_id
 from common.manifest import DIR, FILE, manifest_to_list, scan_folder
 from common.paths import safe_join
 from client.api import ApiError, ClientError
+from client.progress import Progress
 from client.state import manifest_hash, state_key
 
 
@@ -20,11 +21,13 @@ class Interrupted(Exception):
         self.remaining = remaining
 
 
-def run_backup(api, folder, state, stop_after=None, log=print) -> dict:
+def run_backup(api, folder, state, stop_after=None, log=print, progress_stream=None) -> dict:
     folder = Path(folder).resolve()
     if not folder.is_dir():
         raise ClientError(f"not a folder: {folder}")
 
+    if progress_stream is not None:
+        print(f"scanning {folder} ...", file=progress_stream, flush=True)
     entries = _exclude_state_dir(scan_folder(folder), folder, state.path.parent)
     manifest = manifest_to_list(entries)
     key = state_key(str(folder), api.base_url, manifest_hash(manifest))
@@ -46,16 +49,22 @@ def run_backup(api, folder, state, stop_after=None, log=print) -> dict:
         )
 
     locations = _chunk_locations(entries)
+    missing_bytes = sum(locations[h][2] for h in missing)
+    progress = Progress("uploading", len(missing), missing_bytes, progress_stream)
     sent = 0
-    for h in missing:
-        if stop_after is not None and sent >= stop_after:
-            raise Interrupted(upload_id, sent, len(missing) - sent)
-        path, offset = locations[h]
-        data = _read_chunk(folder, path, offset)
-        if chunk_id(data) != h:
-            raise ClientError(f"{path} changed while backing up; run backup again")
-        api.put_chunk(h, data, upload_id)
-        sent += 1
+    try:
+        for h in missing:
+            if stop_after is not None and sent >= stop_after:
+                raise Interrupted(upload_id, sent, len(missing) - sent)
+            path, offset, _ = locations[h]
+            data = _read_chunk(folder, path, offset)
+            if chunk_id(data) != h:
+                raise ClientError(f"{path} changed while backing up; run backup again")
+            api.put_chunk(h, data, upload_id)
+            sent += 1
+            progress.advance(len(data))
+    finally:
+        progress.done()
 
     summary = api.commit(upload_id)
     state.remove(key)
@@ -89,11 +98,12 @@ def _resume(api, state, key, log):
 
 
 def _chunk_locations(entries) -> dict:
-    """chunk ID -> (file path, byte offset) of its first occurrence."""
+    """chunk ID -> (file path, byte offset, length) of its first occurrence."""
     locations = {}
     for e in entries:
         for i, h in enumerate(e.chunks):
-            locations.setdefault(h, (e.path, i * CHUNK_SIZE))
+            offset = i * CHUNK_SIZE
+            locations.setdefault(h, (e.path, offset, min(CHUNK_SIZE, e.size - offset)))
     return locations
 
 

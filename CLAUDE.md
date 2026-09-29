@@ -68,4 +68,8 @@ Done:
 
 Next (optional polish):
 - [ ] README with usage examples for the demo.
-- [ ] Show a progress line during long backups/restores.
+- [x] `scripts/sample_check.py SRC1 [SRC2 ...] [--work DIR]`: full demo/check on any
+  folders (backup, restore + compare, interrupt/restart/resume, corrupt + verify,
+  byte table). Smoke-tested by `tests/test_sample_check.py`.
+- [x] Progress line on stderr during backup/restore (`client/progress.py`:
+  in-place on a terminal, a line every 2 s when redirected).

@@ -153,6 +153,7 @@ def test_restore_matches_original(cli, tmp_path):
     dest = tmp_path / "restored"
     r = cli("restore", version, dest)
     assert r.code == 0, r.err
+    assert "restoring: 6/6 chunks" in r.err  # big.bin has 3, the three small files 1 each
 
     before, after = snapshot(src), snapshot(dest)
     assert set(after) == set(before)
@@ -220,6 +221,7 @@ def test_resume_after_interrupt_and_server_restart(cli, server, tmp_path):
     r = cli("backup", src, "--stop-after", "2")
     assert r.code == 3
     assert "interrupted after 2 chunk upload(s); 2 chunk(s) still missing" in r.out
+    assert "uploading: 2/4 chunks, 1.0/2.0 MiB" in r.err
     state = json.loads((Path.cwd() / ".brokenvault" / "state.json").read_text())
     (record,) = state.values()
     upload_id = record["upload_id"]
@@ -233,6 +235,7 @@ def test_resume_after_interrupt_and_server_restart(cli, server, tmp_path):
     assert field(r.out, "version") == upload_id
     assert field(r.out, "state") == "completed"
     assert chunks_uploaded_this_run(r.out) == 2  # the 2 verified chunks weren't re-sent
+    assert "uploading: 2/2 chunks, 1.0/1.0 MiB" in r.err
     assert "2 already on server" in r.out
     assert int(field(r.out, "uploaded bytes")) == 4 * CHUNK_SIZE
     assert json.loads((Path.cwd() / ".brokenvault" / "state.json").read_text()) == {}
