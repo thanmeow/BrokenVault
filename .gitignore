@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Backup data (server storage, client state, restore targets)
+data/
+storage/
+*.db
+*.sqlite
+*.sqlite3
+.brokenvault/
+*.state.json
+restored/
