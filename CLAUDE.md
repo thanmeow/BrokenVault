@@ -33,3 +33,28 @@ argparse CLI, pytest. Communication over HTTP on localhost.
 - Chunk writes: temp file -> hash check -> atomic rename.
 - Keep code simple and readable. Write tests alongside each feature.
 - Never commit backup data, .venv, or __pycache__.
+
+## Progress
+Dev env: Python 3.11 in project-local `.venv/` (conda). Run tests with
+`.venv\python.exe -m pytest`.
+
+Done:
+- [x] Step 1 — `common/`: chunking + chunk IDs (`chunks.py`), path safety
+  (`paths.py`: `check_rel_path`, `safe_join`), manifests (`manifest.py`:
+  `Entry`, `scan_folder`, `validate_manifest`, list (de)serialisation).
+  mtime stored as `mtime_ns`; symlinks skipped.
+- [x] Steps 2+3 — `server/`: `python -m server --data-dir ./vault_data --port 8000`.
+  `vault.py` = SQLite (WAL; tables `chunks`, `uploads`, `upload_chunks`) + logic,
+  `chunkstore.py` = `data_dir/chunks/ab/<hash>` (temp -> fsync -> re-hash -> os.replace),
+  `app.py` = FastAPI routes. Errors are JSON `{"error": ...}`.
+  Endpoints: `POST /uploads`, `GET /uploads/{id}/missing`,
+  `PUT /chunks/{hash}?upload_id=`, `POST /uploads/{id}/commit` (409 + `missing`),
+  `GET /versions`, `GET /versions/{id}/manifest`, `GET /chunks/{hash}`, `POST /verify`.
+  uploaded_bytes counts only chunks this upload actually had to store.
+
+Next:
+- [ ] Step 4 — `client/`: `backup` (state file with upload ID, resume after
+  client or server restart), `list`, `restore` into an empty folder
+  (verify chunk hashes, `safe_join`, empty files/dirs, set mtimes).
+- [ ] Step 5 — client `verify` command + end-to-end tests against a real
+  uvicorn server (including resume after restart).

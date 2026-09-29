@@ -6,9 +6,10 @@ venv/
 .pytest_cache/
 
 # Backup data (server storage, client state, restore targets)
-data/
-storage/
+vault_data/
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 .brokenvault/
