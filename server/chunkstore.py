@@ -31,12 +31,15 @@ class ChunkStore:
         final.parent.mkdir(exist_ok=True)
         fd, tmp_name = tempfile.mkstemp(dir=final.parent, prefix=".tmp-")
         try:
-            with os.fdopen(fd, "wb") as f:
+            with os.fdopen(fd, "w+b") as f:
                 f.write(data)
                 f.flush()
                 os.fsync(f.fileno())
-            # Re-hash what actually landed on disk before making it visible.
-            if chunk_id(Path(tmp_name).read_bytes()) != hash_:
+                # Re-hash what was written before making it visible. Reading back through
+                # the open handle is ~2x faster on Windows than reopening a new file.
+                f.seek(0)
+                written = f.read()
+            if chunk_id(written) != hash_:
                 raise HashMismatch(f"chunk {hash_} changed while being written")
             os.replace(tmp_name, final)
         except BaseException:

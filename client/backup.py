@@ -6,19 +6,20 @@ from pathlib import Path
 from common.chunks import CHUNK_SIZE, chunk_id
 from common.manifest import DIR, FILE, manifest_to_list, scan_folder
 from common.paths import safe_join
-from client.api import ApiError, ClientError
+from client.api import ApiError, ClientError, ServerUnreachable
 from client.progress import Progress
 from client.state import manifest_hash, state_key
 
 
 class Interrupted(Exception):
-    """Backup stopped on purpose (--stop-after) before all chunks were sent."""
+    """Backup stopped before all chunks were sent; rerunning it resumes the same upload."""
 
-    def __init__(self, upload_id: str, sent: int, remaining: int):
+    def __init__(self, upload_id: str, sent: int, remaining: int, reason: str):
         super().__init__(upload_id)
         self.upload_id = upload_id
         self.sent = sent
         self.remaining = remaining
+        self.reason = reason
 
 
 def run_backup(api, folder, state, stop_after=None, log=print, progress_stream=None) -> dict:
@@ -55,7 +56,7 @@ def run_backup(api, folder, state, stop_after=None, log=print, progress_stream=N
     try:
         for h in missing:
             if stop_after is not None and sent >= stop_after:
-                raise Interrupted(upload_id, sent, len(missing) - sent)
+                raise Interrupted(upload_id, sent, len(missing) - sent, f"--stop-after {stop_after}")
             path, offset, _ = locations[h]
             data = _read_chunk(folder, path, offset)
             if chunk_id(data) != h:
@@ -63,6 +64,10 @@ def run_backup(api, folder, state, stop_after=None, log=print, progress_stream=N
             api.put_chunk(h, data, upload_id)
             sent += 1
             progress.advance(len(data))
+    except KeyboardInterrupt:
+        raise Interrupted(upload_id, sent, len(missing) - sent, "Ctrl+C") from None
+    except ServerUnreachable as e:
+        raise Interrupted(upload_id, sent, len(missing) - sent, str(e)) from None
     finally:
         progress.done()
 

@@ -70,7 +70,16 @@ Done:
   `test_client_unit`, `test_progress`) + `test_client_e2e.py` (real uvicorn
   subprocess on a free port: round trip, dedup, small change, interrupt + server
   restart + resume, verify, restore hash mismatch, error messages) +
-  `test_sample_check.py` (runs the script on generated data). 127 tests.
+  `test_sample_check.py` (runs the script on generated data). 130 tests.
+- [x] Submission docs: `README.md` (from bv_materials template), `docs/architecture.md`,
+  `requirements-lock.txt` (pip freeze). Clean copy + fresh env + lock file -> 130 pass.
+- [x] Speed (509 MiB random tree): first backup 53 s -> 24 s (one shared SQLite
+  connection behind a lock; re-hash temp chunk via the open handle; requests
+  `trust_env=False`). Unchanged backup 3 s, restore 14-23 s (Windows AV slows first
+  open of new chunk files), verify 3 s.
+- [x] Ctrl+C or lost server during upload -> same resumable "interrupted (reason)"
+  message, exit 3. Client retries network errors 5x (~5 s) to survive a server restart.
 
-Next (optional polish):
-- [ ] README with usage examples for the demo.
+Before submitting (team):
+- [ ] Fill in team name + members in README.md (and the ZIP name `<team>-brokenvault.zip`).
+- [ ] Push to a public GitHub repo, tag the commit `submission-final`, ZIP that commit.

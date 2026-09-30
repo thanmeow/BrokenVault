@@ -2,7 +2,9 @@ import pytest
 import requests
 
 from client import api as api_module
+from client import cli as cli_module
 from client.api import Api, ApiError, ClientError, ServerUnreachable
+from client.backup import Interrupted, run_backup
 from client.state import State, manifest_hash, state_key
 
 
@@ -81,6 +83,53 @@ def test_corrupt_state_file_gives_clear_error(tmp_path):
     path.write_text("{not json")
     with pytest.raises(ClientError, match="Delete it"):
         State(path).get("x")
+
+
+class FakeApi:
+    """Accepts the upload, then fails the Nth chunk upload with `error`."""
+
+    base_url = "http://fake"
+
+    def __init__(self, fail_on: int, error: BaseException):
+        self.fail_on, self.error, self.puts = fail_on, error, 0
+
+    def create_upload(self, manifest):
+        missing = [h for e in manifest for h in e["chunks"]]
+        return {"id": "up1", "missing": list(dict.fromkeys(missing))}
+
+    def put_chunk(self, h, data, upload_id):
+        self.puts += 1
+        if self.puts == self.fail_on:
+            raise self.error
+
+
+@pytest.mark.parametrize(
+    "error, reason",
+    [(KeyboardInterrupt(), "Ctrl+C"), (ServerUnreachable("cannot reach server"), "cannot reach server")],
+)
+def test_backup_interruptions_are_resumable(tmp_path, error, reason):
+    src = tmp_path / "src"
+    src.mkdir()
+    for i in range(3):
+        (src / f"f{i}").write_bytes(f"content {i}".encode())
+    state = State(tmp_path / "state.json")
+
+    with pytest.raises(Interrupted) as exc:
+        run_backup(FakeApi(fail_on=2, error=error), src, state, log=lambda *_: None)
+
+    assert exc.value.reason == reason
+    assert (exc.value.upload_id, exc.value.sent, exc.value.remaining) == ("up1", 1, 2)
+    (record,) = state._load().values()
+    assert record["upload_id"] == "up1"  # kept, so a rerun resumes
+
+
+def test_ctrl_c_outside_upload_prints_cancelled(monkeypatch, capsys):
+    def boom(api, args):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli_module, "cmd_list", boom)
+    assert cli_module.main(["list"]) == cli_module.EXIT_CANCELLED
+    assert "cancelled" in capsys.readouterr().err
 
 
 def test_manifest_hash_ignores_key_order():

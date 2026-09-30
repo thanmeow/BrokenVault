@@ -220,7 +220,7 @@ def test_resume_after_interrupt_and_server_restart(cli, server, tmp_path):
 
     r = cli("backup", src, "--stop-after", "2")
     assert r.code == 3
-    assert "interrupted after 2 chunk upload(s); 2 chunk(s) still missing" in r.out
+    assert "interrupted (--stop-after 2) after 2 chunk upload(s); 2 chunk(s) still missing" in r.out
     assert "uploading: 2/4 chunks, 1.0/2.0 MiB" in r.err
     state = json.loads((Path.cwd() / ".brokenvault" / "state.json").read_text())
     (record,) = state.values()

@@ -9,7 +9,7 @@ from client.restore import run_restore
 from client.state import STATE_DIR, STATE_FILE, State
 
 DEFAULT_SERVER = "http://127.0.0.1:8000"
-EXIT_OK, EXIT_ERROR, EXIT_INTERRUPTED = 0, 1, 3
+EXIT_OK, EXIT_ERROR, EXIT_INTERRUPTED, EXIT_CANCELLED = 0, 1, 3, 130
 
 
 def cmd_backup(api, args) -> int:
@@ -91,7 +91,8 @@ def main(argv=None) -> int:
         return args.func(api, args)
     except Interrupted as e:
         print(
-            f"interrupted after {e.sent} chunk upload(s); {e.remaining} chunk(s) still missing.\n"
+            f"interrupted ({e.reason}) after {e.sent} chunk upload(s); "
+            f"{e.remaining} chunk(s) still missing.\n"
             f"Upload {e.upload_id} is saved in {STATE_DIR}/{STATE_FILE}; "
             "run the same backup command again to resume."
         )
@@ -99,3 +100,6 @@ def main(argv=None) -> int:
     except ClientError as e:
         print(f"error: {e}", file=sys.stderr)
         return EXIT_ERROR
+    except KeyboardInterrupt:
+        print("cancelled", file=sys.stderr)
+        return EXIT_CANCELLED

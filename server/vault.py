@@ -2,6 +2,7 @@
 
 import json
 import sqlite3
+import threading
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -71,23 +72,29 @@ class Vault:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = self.data_dir / "vault.db"
         self.chunks = ChunkStore(self.data_dir / "chunks")
+        # One long-lived connection, used by one request thread at a time (the lock).
+        # Opening a connection per request cost ~5 ms per chunk upload.
+        # isolation_level=None: we issue BEGIN/COMMIT ourselves.
+        self._conn = sqlite3.connect(
+            self.db_path, isolation_level=None, timeout=30, check_same_thread=False
+        )
+        self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA foreign_keys=ON")
+        self._lock = threading.Lock()
         with self._connect() as conn:
             conn.executescript(SCHEMA)
+
+    def close(self) -> None:
+        with self._lock:
+            self._conn.close()
 
     # --- database helpers ---------------------------------------------------
 
     @contextmanager
     def _connect(self):
-        # One connection per operation keeps things thread-safe under FastAPI's thread pool.
-        # isolation_level=None: we issue BEGIN/COMMIT ourselves.
-        conn = sqlite3.connect(self.db_path, isolation_level=None, timeout=30)
-        conn.row_factory = sqlite3.Row
-        try:
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA foreign_keys=ON")
-            yield conn
-        finally:
-            conn.close()
+        with self._lock:
+            yield self._conn
 
     @contextmanager
     def _transaction(self, conn):
@@ -197,14 +204,16 @@ class Vault:
                     raise VaultError(400, f"chunk {hash_} is not part of upload {upload_id}")
 
             known = conn.execute("SELECT 1 FROM chunks WHERE hash = ?", (hash_,)).fetchone()
-            if known and self.chunks.exists(hash_):
-                return {"hash": hash_, "stored": False}
+        if known and self.chunks.exists(hash_):
+            return {"hash": hash_, "stored": False}
 
-            try:
-                self.chunks.write(hash_, data)
-            except HashMismatch as e:
-                raise VaultError(400, str(e)) from None
+        # File I/O happens outside the database lock.
+        try:
+            self.chunks.write(hash_, data)
+        except HashMismatch as e:
+            raise VaultError(400, str(e)) from None
 
+        with self._connect() as conn:
             with self._transaction(conn):
                 conn.execute(
                     "INSERT OR IGNORE INTO chunks (hash, size, stored_at) VALUES (?, ?, ?)",

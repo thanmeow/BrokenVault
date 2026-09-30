@@ -4,7 +4,7 @@ import time
 
 import requests
 
-RETRIES = 3
+RETRIES = 5  # waits 0.5 + 1 + 1.5 + 2 = 5 s in total: enough to ride out a server restart
 RETRY_DELAY = 0.5  # seconds, multiplied by the attempt number
 TIMEOUT = (5, 120)  # (connect, read) seconds
 
@@ -30,6 +30,9 @@ class Api:
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip("/")
         self.session = requests.Session()
+        # Don't read proxy/netrc settings from the environment: the server is local, and
+        # requests re-scans every environment variable per request (~2 ms per chunk).
+        self.session.trust_env = False
 
     def _request(self, method: str, path: str, **kwargs) -> requests.Response:
         for attempt in range(1, RETRIES + 1):
