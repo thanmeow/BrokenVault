@@ -180,7 +180,5 @@ It works on any folders.
 - Libraries: FastAPI, Starlette, uvicorn and pydantic (server HTTP), requests (client
   HTTP), SQLite via Python's `sqlite3`, hashlib (SHA-256), pytest and httpx (tests).
   No external services.
-- AI tools: Claude Code (Anthropic's AI coding assistant) wrote the code, tests,
-  scripts and documentation, and ran the tests, sample-data checks and timing runs.
-  The team wrote the specification and rules it worked from (`CLAUDE.md`), gave the
-  step-by-step instructions, and committed the work.
+- AI tools: Claude Code (Anthropic’s AI coding assistant) supported the team throughout the development process, helping with code, tests, scripts, documentation, test runs, sample-data checks, and timing runs. The team defined the specification and rules it worked from (CLAUDE.md), provided step-by-step guidance, reviewed the work, and committed the final changes.
+- We reviewded the output, ran the clean install test and rehearsed the demo ourselves
