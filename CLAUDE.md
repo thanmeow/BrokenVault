@@ -61,15 +61,16 @@ Done:
   verifies every chunk, dir mtimes deepest-first), `cli.py`.
   Exit codes: 0 ok, 1 error or damage found by verify, 3 interrupted.
   `list` fetches each manifest to count files (the server's /versions doesn't include it).
+- [x] Progress line on stderr during backup/restore (`client/progress.py`:
+  in-place on a terminal, a line every 2 s when redirected).
+- [x] `scripts/sample_check.py SRC1 [SRC2 ...] [--work DIR]`: full demo/check on any
+  folders (backup, restore + compare, interrupt/restart/resume, corrupt + verify,
+  byte table). Passes with 0 issues on bv_materials sample v1 + v2.
 - [x] Tests: unit (`test_chunks`, `test_paths`, `test_manifest`, `test_server`,
-  `test_client_unit`) + `test_client_e2e.py` (real uvicorn subprocess on a free
-  port: round trip, dedup, small change, interrupt + server restart + resume,
-  verify, restore hash mismatch, error messages). 121 tests.
+  `test_client_unit`, `test_progress`) + `test_client_e2e.py` (real uvicorn
+  subprocess on a free port: round trip, dedup, small change, interrupt + server
+  restart + resume, verify, restore hash mismatch, error messages) +
+  `test_sample_check.py` (runs the script on generated data). 127 tests.
 
 Next (optional polish):
 - [ ] README with usage examples for the demo.
-- [x] `scripts/sample_check.py SRC1 [SRC2 ...] [--work DIR]`: full demo/check on any
-  folders (backup, restore + compare, interrupt/restart/resume, corrupt + verify,
-  byte table). Smoke-tested by `tests/test_sample_check.py`.
-- [x] Progress line on stderr during backup/restore (`client/progress.py`:
-  in-place on a terminal, a line every 2 s when redirected).
