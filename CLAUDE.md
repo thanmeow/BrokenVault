@@ -80,6 +80,11 @@ Done:
 - [x] Ctrl+C or lost server during upload -> same resumable "interrupted (reason)"
   message, exit 3. Client retries network errors 5x (~5 s) to survive a server restart.
 
+- [x] README filled in (team The lady bugs: Thanmai Kancha, Mokshitha Burra), headings
+  match `bv_materials/README_Template.md` exactly; every Commands/Demo command run
+  against the sample data. `scripts/compare_folders.py SRC RESTORED` for the demo
+  compare step. 132 tests.
+
 Before submitting (team):
-- [ ] Fill in team name + members in README.md (and the ZIP name `<team>-brokenvault.zip`).
-- [ ] Push to a public GitHub repo, tag the commit `submission-final`, ZIP that commit.
+- [ ] Push to a public GitHub repo, tag the commit `submission-final`, ZIP that
+  commit as `the-lady-bugs-brokenvault.zip` (or however the event form spells the team).

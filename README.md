@@ -1,4 +1,4 @@
-# BrokenVault - <Team Name>
+# BrokenVault - The lady bugs
 
 A client-server backup tool that saves versions of a folder. It sends only chunks the
 server doesn't already have, resumes an interrupted upload after either program
@@ -7,13 +7,13 @@ and reports damaged stored data.
 
 ## Team
 
-- <Member 1>
-- <Member 2>
+- Member 1: Thanmai Kancha
+- Member 2: Mokshitha Burra
 
 ## Supported setup
 
-- Operating system: Windows 10 (tested). Nothing is Windows-specific, but other systems are untested.
-- Language: Python 3.11
+- Operating system or Docker version: Windows 10 (tested). No Docker needed.
+- Programming language and version: Python 3.11
 - Required tools: Python 3.11 with `pip`. No internet access is needed after install.
 
 ## Install
@@ -26,34 +26,45 @@ py -3.11 -m venv .venv
 pip install -r requirements-lock.txt
 ```
 
+If Python 3.11 isn't on PATH, any Python 3.11 works, e.g. `conda create -p .venv python=3.11`.
+Instead of the activate line, put that environment first on PATH (in every terminal
+you use), then run the `pip install` line:
+
+```text
+$env:PATH = "$PWD\.venv;$PWD\.venv\Scripts;$env:PATH"
+```
+
 `requirements-lock.txt` pins the exact tested versions; `requirements.txt` lists the
 direct dependencies (FastAPI, uvicorn, requests, httpx, pytest).
 
 ## Start the complete system
 
-The server is one command (it keeps running; use a second terminal for the client):
+The server is one command. It keeps running, so use a second terminal (in the repo
+root, with the same environment activated) for the client commands:
 
 ```text
 python -m server
 ```
 
-Options: `--data-dir DIR` (default `./vault_data`) and `--port N` (default 8000).
-The server listens on 127.0.0.1 only. The client talks to it over HTTP; use
-`python -m client --server http://127.0.0.1:N ...` if you change the port.
+It stores data in `.\vault_data` and listens on `http://127.0.0.1:8000` (options:
+`--data-dir DIR`, `--port N`; point the client at another port with
+`python -m client --server http://127.0.0.1:N ...`).
 
 ## Commands
+
+The examples back up the sample folders from `..\bv_materials`; any folder works.
 
 ### Back up a folder
 
 ```text
-python -m client backup <folder>
+python -m client backup ..\bv_materials\brokenvault_sample_v1
 ```
 
 Prints the version ID, state, file/dir counts, total bytes, uploaded chunk bytes,
 reused bytes and chunk counts, with a progress line while uploading.
-`--stop-after N` stops after N chunk uploads (to demonstrate resume). Ctrl+C or a
-lost server also stops it the same way. Running the same command again continues
-the **same** upload and sends only chunks the server still lacks.
+`--stop-after N` stops after N chunk uploads, to demonstrate resume. Ctrl+C or a lost
+server stops it the same way. Running the same command again continues the **same**
+upload and sends only chunks the server still lacks.
 
 ### List completed versions
 
@@ -67,11 +78,12 @@ Unfinished uploads are never listed.
 ### Restore a version
 
 ```text
-python -m client restore <version-id> <empty-or-new-folder>
+python -m client restore <version-id> ..\bv_restore\v1
 ```
 
-Rebuilds every file, empty file and empty folder, checks every chunk's hash while
-reading, and sets file and folder modification times. Refuses a non-empty destination.
+`<version-id>` is printed by `backup` and `list`. The destination must be new or
+empty. Restore rebuilds every file, empty file and empty folder, checks every chunk's
+hash while reading, and sets file and folder modification times.
 
 ### Verify stored data
 
@@ -91,45 +103,57 @@ Exit codes: 0 success, 1 error (or damage found by verify), 3 backup interrupted
 python -m pytest
 ```
 
-130 tests: chunking, manifest and path checks, server API, client unit tests,
-and end-to-end tests that start a real server process (backup, reuse, interrupt +
-server restart + resume, exact restore, damage + verify, error messages).
+132 tests: chunking, manifest and path checks, server API, client unit tests,
+end-to-end tests that start a real server process (backup, reuse, interrupt + server
+restart + resume, exact restore, damage + verify, error messages), and the two
+scripts in `scripts/`.
 
 ## Demo steps
 
-With the server running in one terminal (`python -m server --data-dir demo_data`):
+Start with no `vault_data`, `.brokenvault` or `..\bv_restore` folder (delete them to
+run the demo again). Terminal 1: `python -m server`. Terminal 2, from the repo root:
 
-1. Back up version 1: `python -m client backup <v1-folder>`
-2. Back up version 2 and show reused and uploaded bytes: `python -m client backup <v2-folder>`
-3. Interrupt another upload: `python -m client backup <v3-folder> --stop-after 5`
-   (or press Ctrl+C), show `python -m client list` has no new version, then stop the
-   server (Ctrl+C) and start it again with the same `--data-dir`.
-4. Continue with the same command: `python -m client backup <v3-folder>`. It reports
-   `resuming upload <id>`, completes under that same ID, then restore it:
-   `python -m client restore <id> restored_v3`.
-5. Change or remove one stored chunk (any file under `demo_data\chunks\`) and run
-   `python -m client verify`.
+1. Back up version 1:
 
-`python scripts/sample_check.py <v1-folder> <v2-folder>` runs all of the above
-automatically against a throwaway server and data folder, compares each restore with
-its source (bytes, empty items, mtimes), and prints a table of total, uploaded and
-reused bytes. It works on any folders.
+   ```text
+   python -m client backup ..\bv_materials\brokenvault_sample_v1
+   ```
 
-## Performance
+2. Back up version 2, interrupted after one chunk. `list` still shows only version 1:
 
-Measured on the development laptop (Windows 10, SSD) with a 509 MiB tree of random
-data (325 files, nested folders), client and server on the same machine:
+   ```text
+   python -m client backup ..\bv_materials\brokenvault_sample_v2 --stop-after 1
+   python -m client list
+   ```
 
-| Operation | Time |
-|---|---:|
-| First backup (all 1,260 chunks uploaded) | 24 s |
-| Second backup, folder unchanged (0 bytes uploaded) | 3 s |
-| Restore | 14-23 s |
-| Verify | 3 s |
+3. Restart both programs: press Ctrl+C in terminal 1 and run `python -m server` again.
+   (The client is a new process for every command.)
 
-Windows real-time antivirus scanning adds about 10 ms to the first read of each newly
-written chunk file, which is why the first restore after a backup is the slowest.
-Excluding the data folder from scanning speeds that up.
+4. Continue version 2 with the same command. It prints `resuming upload <id>`,
+   finishes under that same ID, and shows uploaded bytes far below the total, with
+   the rest reused. Then restore both versions and compare them with their sources:
+
+   ```text
+   python -m client backup ..\bv_materials\brokenvault_sample_v2
+   python -m client restore <v1-version-id> ..\bv_restore\v1
+   python -m client restore <v2-version-id> ..\bv_restore\v2
+   python scripts/compare_folders.py ..\bv_materials\brokenvault_sample_v1 ..\bv_restore\v1
+   python scripts/compare_folders.py ..\bv_materials\brokenvault_sample_v2 ..\bv_restore\v2
+   ```
+
+5. Change one stored chunk, remove another, and verify:
+
+   ```text
+   $chunks = Get-ChildItem vault_data\chunks -Recurse -File
+   Set-Content $chunks[0].FullName "damaged"
+   Remove-Item $chunks[-1].FullName
+   python -m client verify
+   ```
+
+`python scripts/sample_check.py ..\bv_materials\brokenvault_sample_v1 ..\bv_materials\brokenvault_sample_v2`
+runs all of this automatically against a throwaway server and data folder. It checks
+every number and comparison and prints a table of total, uploaded and reused bytes.
+It works on any folders.
 
 ## Known limits
 
@@ -145,6 +169,10 @@ Excluding the data folder from scanning speeds that up.
   the interrupted run, a new upload starts (already stored chunks are still reused).
 - A failed restore (for example a damaged chunk) stops and leaves the destination
   incomplete.
+- Speed, measured on a 509 MiB random tree (325 files) with client and server on one
+  Windows 10 laptop: first backup 24 s, unchanged backup 3 s, restore 14-23 s, verify
+  3 s. Windows real-time antivirus adds about 10 ms to the first read of each newly
+  written chunk file, which makes the first restore after a backup the slowest.
 - Tested on Windows 10 only.
 
 ## External and AI-assisted work
@@ -152,5 +180,7 @@ Excluding the data folder from scanning speeds that up.
 - Libraries: FastAPI, Starlette, uvicorn and pydantic (server HTTP), requests (client
   HTTP), SQLite via Python's `sqlite3`, hashlib (SHA-256), pytest and httpx (tests).
   No external services.
-- AI tools: Claude Code (Anthropic) was used to write the code, tests and
-  documentation under the team's direction; the team reviewed and ran everything.
+- AI tools: Claude Code (Anthropic's AI coding assistant) wrote the code, tests,
+  scripts and documentation, and ran the tests, sample-data checks and timing runs.
+  The team wrote the specification and rules it worked from (`CLAUDE.md`), gave the
+  step-by-step instructions, and committed the work.
